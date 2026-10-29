@@ -59,7 +59,20 @@ async def chat(request: ChatRequest):
     add_message(conversation_id, "user", request.message)
 
     try:
-        reply = await generate_reply(request.message)
+        conversation = get_conversation(conversation_id)
+
+        if conversation is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Conversation not found.",
+            )
+
+        messages = [
+            {"role": message["role"], "content": message["content"]}
+            for message in conversation["messages"]
+        ]
+
+        reply = await generate_reply(messages)
     except HTTPError as exc:
         raise HTTPException(
             status_code=502,

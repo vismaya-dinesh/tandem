@@ -40,7 +40,9 @@ def test_chat_returns_model_reply_and_conversation_id():
     assert data["model"] == "qwen2.5:3b"
     assert data["conversation_id"]
 
-    mock_generate.assert_awaited_once_with("What is Tandem?")
+    mock_generate.assert_awaited_once_with(
+    [{"role": "user", "content": "What is Tandem?"}]
+    )
 
 
 def test_chat_rejects_empty_message():
@@ -163,3 +165,48 @@ def test_existing_conversation_can_receive_another_message():
 
     assert conversation is not None
     assert len(conversation["messages"]) == 4
+
+
+def test_chat_passes_previous_messages_as_context():
+    with patch(
+        "backend.main.generate_reply",
+        new_callable=AsyncMock,
+    ) as mock_generate:
+        mock_generate.side_effect = [
+            "Python is a great programming language.",
+            "You mentioned Python.",
+        ]
+
+        first_response = client.post(
+            "/chat",
+            json={"message": "My favourite language is Python."},
+        )
+
+        conversation_id = first_response.json()["conversation_id"]
+
+        second_response = client.post(
+            "/chat",
+            json={
+                "message": "Which language did I mention?",
+                "conversation_id": conversation_id,
+            },
+        )
+
+    assert second_response.status_code == 200
+
+    second_call_messages = mock_generate.await_args_list[1].args[0]
+
+    assert second_call_messages == [
+        {
+            "role": "user",
+            "content": "My favourite language is Python.",
+        },
+        {
+            "role": "assistant",
+            "content": "Python is a great programming language.",
+        },
+        {
+            "role": "user",
+            "content": "Which language did I mention?",
+        },
+    ]
