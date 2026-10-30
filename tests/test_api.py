@@ -210,3 +210,101 @@ def test_chat_passes_previous_messages_as_context():
             "content": "Which language did I mention?",
         },
     ]
+
+
+def test_list_conversations_returns_created_conversation():
+    with patch(
+        "backend.main.generate_reply",
+        new_callable=AsyncMock,
+    ) as mock_generate:
+        mock_generate.return_value = "Hello!"
+
+        chat_response = client.post(
+            "/chat",
+            json={"message": "Test conversation listing"},
+        )
+
+    conversation_id = chat_response.json()["conversation_id"]
+
+    response = client.get("/conversations")
+
+    assert response.status_code == 200
+
+    conversations = response.json()
+    matching = [
+        item for item in conversations
+        if item["id"] == conversation_id
+    ]
+
+    assert len(matching) == 1
+    assert matching[0]["title"] == "Test conversation listing"
+    assert matching[0]["message_count"] == 2
+
+
+def test_delete_conversation_removes_messages():
+    with patch(
+        "backend.main.generate_reply",
+        new_callable=AsyncMock,
+    ) as mock_generate:
+        mock_generate.return_value = "Hello!"
+
+        chat_response = client.post(
+            "/chat",
+            json={"message": "Conversation to delete"},
+        )
+
+    conversation_id = chat_response.json()["conversation_id"]
+
+    delete_response = client.delete(
+        f"/conversations/{conversation_id}"
+    )
+
+    assert delete_response.status_code == 200
+    assert delete_response.json()["status"] == "deleted"
+
+    assert get_conversation(conversation_id) is None
+
+    history_response = client.get(
+        f"/conversations/{conversation_id}"
+    )
+
+    assert history_response.status_code == 404
+
+
+def test_deleting_one_conversation_preserves_another():
+    with patch(
+        "backend.main.generate_reply",
+        new_callable=AsyncMock,
+    ) as mock_generate:
+        mock_generate.side_effect = [
+            "First reply",
+            "Second reply",
+        ]
+
+        first_response = client.post(
+            "/chat",
+            json={"message": "First conversation"},
+        )
+
+        second_response = client.post(
+            "/chat",
+            json={"message": "Second conversation"},
+        )
+
+    first_id = first_response.json()["conversation_id"]
+    second_id = second_response.json()["conversation_id"]
+
+    delete_response = client.delete(
+        f"/conversations/{first_id}"
+    )
+
+    assert delete_response.status_code == 200
+    assert get_conversation(first_id) is None
+
+    remaining = get_conversation(second_id)
+
+    assert remaining is not None
+    assert len(remaining["messages"]) == 2
+    assert remaining["messages"][0]["content"] == (
+        "Second conversation"
+    )

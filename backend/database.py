@@ -137,3 +137,34 @@ def get_conversation(conversation_id: str) -> dict | None:
         **dict(conversation),
         "messages": [dict(message) for message in messages],
     }
+
+
+def list_conversations() -> list[dict]:
+    with get_connection() as connection:
+        conversations = connection.execute(
+            """
+            SELECT
+                c.id,
+                c.title,
+                c.created_at,
+                c.updated_at,
+                COUNT(m.id) AS message_count
+            FROM conversations AS c
+            LEFT JOIN messages AS m
+                ON c.id = m.conversation_id
+            GROUP BY c.id
+            ORDER BY c.updated_at DESC
+            """
+        ).fetchall()
+
+    return [dict(conversation) for conversation in conversations]
+
+
+def delete_conversation(conversation_id: str) -> bool:
+    with get_connection() as connection:
+        cursor = connection.execute(
+            "DELETE FROM conversations WHERE id = ?",
+            (conversation_id,),
+        )
+
+        return cursor.rowcount > 0

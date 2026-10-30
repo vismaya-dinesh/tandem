@@ -26,3 +26,11 @@ class ConversationResponse(BaseModel):
     created_at: str
     updated_at: str
     messages: list[MessageResponse]
+
+
+class ConversationListItem(BaseModel):
+    id: str
+    title: str
+    created_at: str
+    updated_at: str
+    message_count: int

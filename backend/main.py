@@ -10,12 +10,15 @@ from backend.database import (
     create_conversation,
     get_conversation,
     initialize_database,
+    delete_conversation,
+    list_conversations,
 )
 from backend.ollama_client import OLLAMA_MODEL, generate_reply
 from backend.schemas import (
     ChatRequest,
     ChatResponse,
     ConversationResponse,
+    ConversationListItem,
 )
 
 
@@ -104,3 +107,27 @@ def read_conversation(conversation_id: str):
         )
 
     return conversation
+
+
+@app.get(
+    "/conversations",
+    response_model=list[ConversationListItem],
+)
+def read_conversations():
+    return list_conversations()
+
+
+@app.delete("/conversations/{conversation_id}")
+def remove_conversation(conversation_id: str):
+    deleted = delete_conversation(conversation_id)
+
+    if not deleted:
+        raise HTTPException(
+            status_code=404,
+            detail="Conversation not found.",
+        )
+
+    return {
+        "status": "deleted",
+        "conversation_id": conversation_id,
+    }
